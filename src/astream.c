@@ -58,20 +58,20 @@ void add_watch(int fd, int index)
 void do_set_stream(int stream, const char *parent_dir, const char *event_name)
 {
     /* get the complete file path of target file. */
-    char *target_file = malloc(strlen(parent_dir) + strlen(event_name) + 2);
-    strcpy(target_file, parent_dir);
-    strcat(target_file, "/");
-    strcat(target_file, event_name);
+    int len = strlen(parent_dir) + strlen(event_name) + 2;
+    char *target_file = malloc(len);
+    snprintf(target_file, len, "%s/%s", parent_dir, event_name);
 
     /* set the stream. */
     int fd = open(target_file, O_RDONLY);
     if(fd < 0) {
         astream_log(ASTREAM_LOG_ERROR, "failed to open file %s\n", target_file);
+        free(target_file);
         return;
     }
 
     if (fcntl(fd, F_SET_RW_HINT, &stream) < 0)
-        astream_log(ASTREAM_LOG_INFO, "failed to set stream for %s\n", target_file);
+        astream_log(ASTREAM_LOG_ERROR, "failed to set stream for %s\n", target_file);
     else
         astream_log(ASTREAM_LOG_INFO, "set stream %d for %s done\n", stream, target_file);
     
@@ -88,16 +88,15 @@ void pass_stream_for_file(struct inotify_event *event)
     int ret;
     int stream;
     int cflags;
-    int match_flag = 0;
     char path[BUFF_SIZE];
     char *dir;
     regmatch_t pmatch;
     regex_t reg;
 
     dir = targets[event->wd].watch_dir;
-    sprintf(path, "%s/%s", dir, event->name);
+    snprintf(path, strlen(dir) + strlen(event->name) + 2, "%s/%s", dir, event->name);
 
-    astream_log(ASTREAM_LOG_INFO, "file %s/%s has created\n", dir, event->name);
+    astream_log(ASTREAM_LOG_INFO, "file %s has created\n", path);
 
     cflags = REG_EXTENDED | REG_NEWLINE;
 
@@ -114,32 +113,28 @@ void pass_stream_for_file(struct inotify_event *event)
 
         ret = regexec(&reg, path, 1, &pmatch, 0);
         if (ret != REG_NOMATCH && pmatch.rm_so != -1) {
-            match_flag = 1;
-            astream_log(ASTREAM_LOG_INFO, "start to set stream for %s/%s", dir, 
-                        event->name);
+            astream_log(ASTREAM_LOG_INFO, "start to set stream for %s\n", path);
             do_set_stream(stream, dir, event->name);
-            break;
+            regfree(&reg);
+            return;
         }
 
         regfree(&reg);
     }
 
-    if (!match_flag) {
-        astream_log(ASTREAM_LOG_INFO, "no stream rule is matched with %s/"
-                   "%s\n", dir, event->name);
-    }
+    astream_log(ASTREAM_LOG_INFO, "no stream rule is matched with %s\n", path);
 }
 
 /* monitor the creation movement of target file under monitored directory. */
 void inotify_accept(int fd)
 {
     char buf[EVENT_BUF_LEN];
-    ssize_t nRead;
+    ssize_t nr_read;
     struct inotify_event *event;
 
-    while ((nRead = read(fd, buf, EVENT_BUF_LEN)) >= 0) {
+    while ((nr_read = read(fd, buf, EVENT_BUF_LEN)) >= 0) {
         /* process all of the events in buffer returned by read(). */
-        for (char *p = buf; p < buf + nRead;) {
+        for (char *p = buf; p < buf + nr_read;) {
             event = (struct inotify_event *)p;
             pass_stream_for_file(event);
             p += EVENT_SIZE + event->len;
@@ -234,6 +229,7 @@ int parse_stream_rule(char *rule_file, watch_target_t *target)
     return nr_rules;
 
 err:
+    free(line);
     return -1;
 }
 
@@ -245,14 +241,12 @@ int check_path_argument(const char *path, int type)
         if (type == DIR_TYPE) {
             printf("error: the monitored directory %s don't exist\n", path);
             ret = -1;
-            goto err;
         } else if (type == FILE_TYPE) {
-            printf("error: the rule file %s don't exist\n", index);
+            printf("error: the rule file %s don't exist\n", path);
             ret = -1;
-            goto err;
         }
     }
-err:
+
     return ret;
 }
 
@@ -489,7 +483,7 @@ void astream_stop() {
             fclose(fp);
             remove(LOCK_FILE);
         } else {
-            astream_log(ASTREAM_LOG_ERROR, "failed to stop astream daemon.\n");
+            astream_log(ASTREAM_LOG_ERROR, "failed to stop astream daemon\n");
         }
     }
 }
@@ -511,7 +505,7 @@ int main(int argc, char **argv)
     if (fp) {
         if (flock(fp->_fileno, LOCK_EX | LOCK_NB) != 0) {
             printf("error: astream daemon is running, if you need to restart "
-                    "it, stop it first using [astream stop] command.\n");
+                    "it, stop it first using [astream stop] command\n");
             return 0;
         }
         fclose(fp);
@@ -519,7 +513,7 @@ int main(int argc, char **argv)
     
     fp = fopen(LOCK_FILE, "w");
     if (!fp) {
-        printf("error: failed to open file %s\n.", LOCK_FILE);
+        printf("error: failed to open file %s\n", LOCK_FILE);
         return 0;
     }
 
@@ -530,7 +524,7 @@ int main(int argc, char **argv)
 
     /* verify the permission of the user */
     if (geteuid() != 0) {
-        printf("error: please run astream daemon under root.\n");
+        printf("error: please run astream daemon under root\n");
         return 0;
     }
 
@@ -543,7 +537,7 @@ int main(int argc, char **argv)
     /* start this process with daemon. */
     ret = daemon(1, 0);
     if (ret < 0) {
-        printf("error: failed to start the astream daemon.\n");
+        printf("error: failed to start the astream daemon\n");
         return 0;
     }
 

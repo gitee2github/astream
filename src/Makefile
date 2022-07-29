@@ -1,7 +1,7 @@
 PROG=astream
 DESTDIR=
 PREFIX=/usr
-BINDIR=$(PREFIX)/local
+BINDIR=$(PREFIX)/bin
 
 obj := astream.o astream.h astream_log.c astream_log.h
 astream : ${obj}

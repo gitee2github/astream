@@ -20,10 +20,10 @@ static enum log_level g_log_level;
 
 void log_level_usage(void)
 {
-    printf("[0] for debug level\n"
-           "[1] for info level\n"
-           "[2] for warning level\n"
-           "[3] for error level\n"
+    printf("[1] for debug level\n"
+           "[2] for info level\n"
+           "[3] for warning level\n"
+           "[4] for error level\n"
            "error is the default level\n");
 }
 
