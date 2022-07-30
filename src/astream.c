@@ -506,7 +506,7 @@ int main(int argc, char **argv)
         if (flock(fp->_fileno, LOCK_EX | LOCK_NB) != 0) {
             printf("error: astream daemon is running, if you need to restart "
                     "it, stop it first using [astream stop] command\n");
-            return 0;
+            goto err;
         }
         fclose(fp);
     }
@@ -514,7 +514,7 @@ int main(int argc, char **argv)
     fp = fopen(LOCK_FILE, "w");
     if (!fp) {
         printf("error: failed to open file %s\n", LOCK_FILE);
-        return 0;
+        goto err;
     }
 
     /* lock the file with the file lock. */
@@ -525,20 +525,20 @@ int main(int argc, char **argv)
     /* verify the permission of the user */
     if (geteuid() != 0) {
         printf("error: please run astream daemon under root\n");
-        return 0;
+        goto err;
     }
 
     /* parse the arguments from command-line. */
     ret = parse_cmdline(argc, argv, &help);
     if (help || ret < 0) {
-        return 0;
+        goto err;
     }
 
     /* start this process with daemon. */
     ret = daemon(1, 0);
     if (ret < 0) {
         printf("error: failed to start the astream daemon\n");
-        return 0;
+        goto err;
     }
 
     /* get the pid of this dameon, and store it into the LOCK_FILE. */
@@ -551,4 +551,8 @@ int main(int argc, char **argv)
     start_inotify(argc);
 
     return 0;
+err:
+    if(fp)
+        close(fp);
+    return -1;
 }
