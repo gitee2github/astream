@@ -29,7 +29,7 @@ void log_level_usage(void)
 
 int set_global_astream_log_level(enum log_level level)
 {
-    if (level < 0 || level > ASTREAM_LOG_ERROR) {
+    if (level <= 0 || level > ASTREAM_LOG_ERROR) {
         printf("error: invalid log level [%d]\n", level);
         log_level_usage();
         return -EINVAL;

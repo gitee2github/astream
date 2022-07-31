@@ -480,12 +480,13 @@ void astream_stop() {
         if (pid > 0) {
             kill(pid, SIGUSR1);// send a SIGUSR1 signal
             printf("the astream daemon has been stopped\n");
-            fclose(fp);
-            remove(LOCK_FILE);
         } else {
             astream_log(ASTREAM_LOG_ERROR, "failed to stop astream daemon\n");
         }
     }
+
+    fclose(fp);
+    remove(LOCK_FILE);
 }
 
 int main(int argc, char **argv)
@@ -534,7 +535,11 @@ int main(int argc, char **argv)
         goto err;
     }
 
-    /* start this process with daemon. */
+    /* start this process with daemon. 
+     * the first argument denote the daemon uses the current directory as its working 
+     * directory，but not the root directory; the second argument means redirect all 
+     * the output message to /dev/null, so use syslog instead.
+     */
     ret = daemon(1, 0);
     if (ret < 0) {
         printf("error: failed to start the astream daemon\n");
