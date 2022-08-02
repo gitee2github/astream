@@ -185,7 +185,7 @@ int parse_stream_rule(char *rule_file, watch_target_t *target)
     fp = fopen(rule_file, "r");
     if (!fp) {
         printf("error: failed to open %s\n", rule_file);
-        goto err;
+        return -1;
     }
 
     /* read each line from file of stream rule. */
@@ -226,9 +226,11 @@ int parse_stream_rule(char *rule_file, watch_target_t *target)
             target->stream_rule[nr_rules++] = stream_rule;
     }
 
+    fclose(fp);
     return nr_rules;
 
 err:
+    fclose(fp);
     free(line);
     return -1;
 }
@@ -537,7 +539,7 @@ int main(int argc, char **argv)
 
     /* start this process with daemon. 
      * the first argument denote the daemon uses the current directory as its working 
-     * directory，but not the root directory; the second argument means redirect all 
+     * directory，but not the root; the second argument means redirect all 
      * the output message to /dev/null, so use syslog instead.
      */
     ret = daemon(1, 0);
@@ -558,6 +560,6 @@ int main(int argc, char **argv)
     return 0;
 err:
     if(fp)
-        close(fp);
+        fclose(fp);
     return -1;
 }
