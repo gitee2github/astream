@@ -3,9 +3,11 @@ DESTDIR=
 PREFIX=/usr
 BINDIR=$(PREFIX)/bin
 
-obj := astream.o astream.h astream_log.c astream_log.h
-astream : ${obj}
-	cc -o astream ${obj}
+astream : astream.c astream.h astream_log.o
+	cc -Wall -o astream astream.c astream_log.o
+
+astream_log.o : astream_log.c astream_log.h
+	cc -Wall -c astream_log.c
 
 install:
 	install -d $(DESTDIR)$(BINDIR)
@@ -14,4 +16,4 @@ install:
 uninstall:
 	rm -f $(DESTDIR)$(BINDIR)/$(PROG)
 clean:
-	rm -f astream.o astream_log.o
+	rm -f astream astream.o astream_log.o
