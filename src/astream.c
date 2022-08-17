@@ -27,7 +27,7 @@ static watch_target_t targets[BUFF_SIZE];
 static FILE *fp = NULL;
 static int inotify_fd = -1;
 
-void free_res(int fd)
+static void free_res(int fd)
 {
     /* removing the monitored directories from the monitoring list. */
     for (int wd = 1; wd <= nr_watches; ++wd) {
@@ -38,7 +38,7 @@ void free_res(int fd)
     close(fd);
 }
 
-void add_watch(int fd, int index)
+static void add_watch(int fd, int index)
 {
     char *dir = targets[index].watch_dir;
     int wd = inotify_add_watch(fd, dir, IN_CREATE);
@@ -55,18 +55,12 @@ void add_watch(int fd, int index)
 /*
  * use fcntl to set the stream of the target file truely.
  */
-void do_set_stream(int stream, const char *parent_dir, const char *event_name)
+static void do_set_stream(int stream, const char *target_file)
 {
-    /* get the complete file path of target file. */
-    int len = strlen(parent_dir) + strlen(event_name) + 2;
-    char *target_file = malloc(len);
-    snprintf(target_file, len, "%s/%s", parent_dir, event_name);
-
     /* set the stream. */
     int fd = open(target_file, O_RDONLY);
     if(fd < 0) {
         astream_log(ASTREAM_LOG_ERROR, "failed to open file %s\n", target_file);
-        free(target_file);
         return;
     }
 
@@ -76,10 +70,9 @@ void do_set_stream(int stream, const char *parent_dir, const char *event_name)
         astream_log(ASTREAM_LOG_INFO, "set stream %d for %s done\n", stream, target_file);
     
     close(fd);
-    free(target_file);
 }
 
-void pass_stream_for_file(struct inotify_event *event)
+static void pass_stream_for_file(struct inotify_event *event)
 {
     if (!(event->mask & IN_CREATE))
         return;
@@ -88,13 +81,17 @@ void pass_stream_for_file(struct inotify_event *event)
     int ret;
     int stream;
     int cflags;
+    int len;
     char path[BUFF_SIZE];
     char *dir;
     regmatch_t pmatch;
     regex_t reg;
 
     dir = targets[event->wd].watch_dir;
-    snprintf(path, strlen(dir) + strlen(event->name) + 2, "%s/%s", dir, event->name);
+    len = strlen(dir) + strlen(event->name) + 2;
+    if (len > BUFF_SIZE)
+        return ;
+    snprintf(path, len, "%s/%s", dir, event->name);
 
     astream_log(ASTREAM_LOG_INFO, "file %s has created\n", path);
 
@@ -114,7 +111,7 @@ void pass_stream_for_file(struct inotify_event *event)
         ret = regexec(&reg, path, 1, &pmatch, 0);
         if (ret != REG_NOMATCH && pmatch.rm_so != -1) {
             astream_log(ASTREAM_LOG_INFO, "start to set stream for %s\n", path);
-            do_set_stream(stream, dir, event->name);
+            do_set_stream(stream, path);
             regfree(&reg);
             return;
         }
@@ -126,13 +123,13 @@ void pass_stream_for_file(struct inotify_event *event)
 }
 
 /* monitor the creation movement of target file under monitored directory. */
-void inotify_accept(int fd)
+static void inotify_accept(int fd)
 {
     char buf[EVENT_BUF_LEN];
     ssize_t nr_read;
     struct inotify_event *event;
 
-    while ((nr_read = read(fd, buf, EVENT_BUF_LEN)) >= 0) {
+    while ((nr_read = read(fd, buf, EVENT_BUF_LEN)) > 0) {
         /* process all of the events in buffer returned by read(). */
         for (char *p = buf; p < buf + nr_read;) {
             event = (struct inotify_event *)p;
@@ -142,11 +139,11 @@ void inotify_accept(int fd)
     }
 }
 
-char *trimwhitespace(char *s)
+static char *trimwhitespace(char *s)
 {
     char *end;
 
-    char *str = (char *)calloc(strlen(s) + 1, sizeof(char *));
+    char *str = (char *)calloc(strlen(s) + 1, sizeof(s));
     if (!str)
         return NULL;
 
@@ -172,14 +169,13 @@ char *trimwhitespace(char *s)
 }
 
 /* parse all stream rules from a given file. */
-int parse_stream_rule(char *rule_file, watch_target_t *target)
+static int parse_stream_rule(char *rule_file, watch_target_t *target)
 {
     int nr_segments; /* record the numbers of segments on each line. */
     int nr_rules = 0;
     char rule[BUFF_SIZE];
     char *segment;
     char *line;
-    char *p;
     FILE *fp;
 
     fp = fopen(rule_file, "r");
@@ -203,7 +199,7 @@ int parse_stream_rule(char *rule_file, watch_target_t *target)
             if (nr_segments == 1) {
                 strcpy(stream_rule.rule, segment);
             } else if (nr_segments == 2) {
-                if (segment != "0" && (stream_rule.stream = atoi(segment)) == 0) {
+                if (strcmp(segment, "0") != 0 && (stream_rule.stream = atoi(segment)) == 0) {
                     printf("error: failed to parse the rule: %s\n", rule);
                     goto err;
                 }
@@ -235,7 +231,7 @@ err:
     return -1;
 }
 
-int check_path_argument(const char *path, int type)
+static int check_path_argument(const char *path, int type)
 {
     int ret = 0;
 
@@ -252,7 +248,7 @@ int check_path_argument(const char *path, int type)
     return ret;
 }
 
-void astream_usage()
+static void astream_usage()
 {
     printf("usage: astream [options]\n"
         "options:\n"
@@ -263,7 +259,7 @@ void astream_usage()
         "    stop                                stop the astream stop normally\n");
 }
 
-int check_cmdline(int opt, int argc, char **argv, int *monitored_dirs_arr, 
+static int check_cmdline(int opt, int argc, char **argv, int *monitored_dirs_arr, 
                   int *rule_files_arr, int *nr_monitored_dirs, int *nr_rule_files)
 {
     int ret = 0;
@@ -329,7 +325,7 @@ err:
     return ret;
 }
 
-int check_parse_result(int argc, int nr_arguments, const int *help, int log_level)
+static int check_parse_result(int argc, int nr_arguments, const int *help, int log_level)
 {
     if (*help && nr_arguments == argc - 1) /* for astream -h */
         return 0;
@@ -347,7 +343,7 @@ int check_parse_result(int argc, int nr_arguments, const int *help, int log_leve
     return -1;
 }
 
-int parse_cmdline(int argc, char **argv, int *help)
+static int parse_cmdline(int argc, char **argv, int *help)
 {
     const char *opt_str = "i:r:l:h";
     int ret = 0;
@@ -429,7 +425,7 @@ err:
     return ret;
 }
 
-void start_inotify(int argc)
+static void start_inotify(int argc)
 {
     /* init inotify instance. */
     inotify_fd = inotify_init();
@@ -450,7 +446,7 @@ void start_inotify(int argc)
     inotify_accept(inotify_fd);
 }
 
-void signalHandler(int signum)
+static void signalHandler(int signum)
 {
     /* stop the astream daemon and release some sources when we get a signal. */
     if (fp != NULL) {
@@ -465,7 +461,7 @@ void signalHandler(int signum)
     exit(EXIT_SUCCESS);
 }
 
-void astream_stop() {
+static void astream_stop() {
     char buf[MAX_PID_BUFFER_SIZE];
     FILE *fp;
     pid_t pid;
@@ -521,7 +517,10 @@ int main(int argc, char **argv)
     }
 
     /* lock the file with the file lock. */
-    flock(fp->_fileno, LOCK_EX | LOCK_NB);
+    if(flock(fp->_fileno, LOCK_EX | LOCK_NB) != 0) {
+         printf("error: the file %s is not locked\n", LOCK_FILE);
+         goto err;
+    }
 
     set_global_astream_log_level(ASTREAM_LOG_INFO);
 
