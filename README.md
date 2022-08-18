@@ -68,3 +68,12 @@ astream是一款支持用户自定义配置目标文件的流信息，以使能N
   `astream -i /path/xx/ /path/yy/ -r /path/to/stream_rule1.txt /path/to/stream_rule2.txt `
 
   命令中监控两个目录，目录1`/path/xx`，对应的流分配规则文件为`/path/to/stream_rule1.txt`，目录2`/path/yy`，对应的流分配规则文件为`/path/to/stream_rule1`。
+### NVMe SSD磁盘的写放大WA计算
+- 安装`nvme-cli`软件包
+  `yum install nvme-cli`
+- 执行`calculate_wa.sh`脚本计算WA
+  由于磁盘WA的收益需要长稳测试才能相对明显，因此，我们利用定时器crontab，每隔1小时执行计算当前磁盘的WA，具体操作如下：
+
+  假设脚本位于`/root`下，则执行`crontab -e`，加入定时任务
+  `0 */1 * * * bash /root/calculate.sh nvme0`
+  其中，若所测的`NVMe`磁盘盘符名为`/dev/nvme0n1`，则定时任务中脚本的参数传入`nvme0`即可，其它依此类推。
