@@ -1,4 +1,8 @@
 #!/bin/bash
+
+source /etc/profile
+source ~/.bash_profile
+
 BASE_PATH=$(cd $(dirname $0);pwd)
 diskName=$1
 
