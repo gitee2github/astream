@@ -1,0 +1,4 @@
+^/data/mysql-1/data/ib_logfile 2
+^/data/mysql-1/data/ibdata1$ 3
+^/data/mysql-1/data/undo 4
+^/data/mysql-1/data/mysql-bin 5
